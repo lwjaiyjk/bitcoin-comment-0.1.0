@@ -9,7 +9,7 @@ class CRequestTracker;
 class CNode;
 
 
-
+// 默认端口号
 static const unsigned short DEFAULT_PORT = htons(8333);
 static const unsigned int PUBLISH_HOPS = 5;
 enum
@@ -51,15 +51,17 @@ void CheckForShutdown(int n);
 // The message start string is designed to be unlikely to occur in normal data.
 // The characters are rarely used upper ascii, not valid as UTF-8, and produce
 // a large 4-byte int at any alignment.
+// 所有的消息都共有的消息头
 static const char pchMessageStart[4] = { 0xf9, 0xbe, 0xb4, 0xd9 };
 
+// 消息头
 class CMessageHeader
 {
 public:
     enum { COMMAND_SIZE=12 };
     char pchMessageStart[sizeof(::pchMessageStart)];
-    char pchCommand[COMMAND_SIZE];
-    unsigned int nMessageSize;
+    char pchCommand[COMMAND_SIZE]; // 命令
+    unsigned int nMessageSize; // 命令大小
 
     CMessageHeader()
     {
@@ -91,6 +93,7 @@ public:
             return string(pchCommand, pchCommand + COMMAND_SIZE);
     }
 
+    // 判断对应的消息头是否有效
     bool IsValid()
     {
         // Check start string
@@ -100,6 +103,7 @@ public:
         // Check the command string for errors
         for (char* p1 = pchCommand; p1 < pchCommand + COMMAND_SIZE; p1++)
         {
+            // 遇到一个为0后，其对应之后都应该为0
             if (*p1 == 0)
             {
                 // Must be all zeros after the first zero
@@ -128,7 +132,7 @@ public:
 
 
 static const unsigned char pchIPv4[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
-
+// 地址信息
 class CAddress
 {
 public:
@@ -297,14 +301,14 @@ public:
 
 
 
-
+// 消息类型
 enum
 {
-    MSG_TX = 1,
-    MSG_BLOCK,
-    MSG_REVIEW,
-    MSG_PRODUCT,
-    MSG_TABLE,
+    MSG_TX = 1, // 交易消息
+    MSG_BLOCK, // 块信息
+    MSG_REVIEW, //
+    MSG_PRODUCT, // 产品消息
+    MSG_TABLE,// 表
 };
 
 static const char* ppszTypeName[] =
@@ -430,7 +434,7 @@ extern CAddress addrProxy;
 
 
 
-
+// 节点定义
 class CNode
 {
 public:
@@ -455,11 +459,11 @@ public:
     map<uint256, CRequestTracker> mapRequests;
     CCriticalSection cs_mapRequests;
 
-    // flood
+    // flood 洪泛
     vector<CAddress> vAddrToSend;
     set<CAddress> setAddrKnown;
 
-    // inventory based relay
+    // inventory based relay  基于转播的库存
     set<CInv> setInventoryKnown;
     set<CInv> setInventoryKnown2;
     vector<CInv> vInventoryToSend;
@@ -504,17 +508,17 @@ private:
     void operator=(const CNode&);
 public:
 
-
+    // 准备释放链接
     bool ReadyToDisconnect()
     {
         return fDisconnect || GetRefCount() <= 0;
     }
-
+    // 获取对应的应用计数
     int GetRefCount()
     {
         return max(nRefCount, 0) + (GetTime() < nReleaseTime ? 1 : 0);
     }
-
+    // 增加对应的应用计数
     void AddRef(int64 nTimeout=0)
     {
         if (nTimeout != 0)
@@ -522,20 +526,21 @@ public:
         else
             nRefCount++;
     }
-
+    // 节点释放对应，则对应的应用计数减1
     void Release()
     {
         nRefCount--;
     }
 
 
-
+    // 增加库存
     void AddInventoryKnown(const CInv& inv)
     {
         CRITICAL_BLOCK(cs_inventory)
             setInventoryKnown.insert(inv);
     }
 
+    // 推送库存
     void PushInventory(const CInv& inv)
     {
         CRITICAL_BLOCK(cs_inventory)
@@ -555,7 +560,7 @@ public:
         static int64 nLastTime;
         nLastTime = nNow = max(nNow, ++nLastTime);
 
-        // Each retry is 2 minutes after the last
+        // Each retry is 2 minutes after the last，没有到2分钟，则对应的nRequesttime对应的值都一样
         nRequestTime = max(nRequestTime + 2 * 60 * 1000000, nNow);
         mapAskFor.insert(make_pair(nRequestTime, inv));
     }

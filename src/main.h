@@ -18,7 +18,7 @@ static const unsigned int MAX_SIZE = 0x02000000;
 // COIN 表示的是一个比特币，而且100000000就是表示一个比特币，比特币最小单位为小数点后8位
 static const int64 COIN = 100000000;
 static const int64 CENT = 1000000;
-static const int COINBASE_MATURITY = 100;
+static const int COINBASE_MATURITY = 100;// 币基成熟度
 // 工作量证明的难度
 static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 
@@ -81,9 +81,9 @@ bool SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew);
 class CDiskTxPos
 {
 public:
-    unsigned int nFile;
-    unsigned int nBlockPos;
-    unsigned int nTxPos;
+    unsigned int nFile; // 块所在文件的信息，而且块文件的命名一般是blk${nFile}.dat
+    unsigned int nBlockPos; // 当前块在对应块文件中的偏移
+    unsigned int nTxPos; // 交易在对应块中的偏移
 
     CDiskTxPos()
     {
@@ -133,8 +133,8 @@ public:
 class CInPoint
 {
 public:
-    CTransaction* ptx;
-    unsigned int n;
+    CTransaction* ptx; // 交易指针
+    unsigned int n; // 对应交易当前的第几个输入
 
     CInPoint() { SetNull(); }
     CInPoint(CTransaction* ptxIn, unsigned int nIn) { ptx = ptxIn; n = nIn; }
@@ -148,8 +148,8 @@ public:
 class COutPoint
 {
 public:
-    uint256 hash;
-    unsigned int n;
+    uint256 hash; // 交易对应的hash
+    unsigned int n; // 交易对应的第几个输出
 
     COutPoint() { SetNull(); }
     COutPoint(uint256 hashIn, unsigned int nIn) { hash = hashIn; n = nIn; }
@@ -223,7 +223,7 @@ public:
         READWRITE(scriptSig);
         READWRITE(nSequence);
     )
-
+    // 交易对应nSequence是最大，已经是最新了，是最终的
     bool IsFinal() const
     {
         return (nSequence == UINT_MAX);
@@ -400,8 +400,10 @@ public:
         return SerializeHash(*this);
     }
 
+    // 判断是否是最终的交易
     bool IsFinal() const
     {
+        // 如果锁定时间等于0或者锁定时间小于主链的长度，则说明是最终的交易
         if (nLockTime == 0 || nLockTime < nBestHeight)
             return true;
         foreach(const CTxIn& txin, vin)

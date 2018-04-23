@@ -27,27 +27,27 @@ int nBestHeight = -1; // ×î³¤Á´¶ÔÓ¦µÄÇø¿é¸öÊı£¬´Ó´´ÊÀÇø¿éµ½µ±Ç°Ö÷Á´×îºóÒ»¸öÇø¿é£
 uint256 hashBestChain = 0; // ×î³¤Á´×îºóÒ»¸öÇø¿é¶ÔÓ¦µÄhash
 CBlockIndex* pindexBest = NULL; // ¼ÇÂ¼µ±Ç°×î³¤Á´Ö÷Á´¶ÔÓ¦µÄÇø¿éË÷ÒıÖ¸Õë
 
-map<uint256, CBlock*> mapOrphanBlocks;
+map<uint256, CBlock*> mapOrphanBlocks; // ¹Â¶ù¿émap
 multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
 
-map<uint256, CDataStream*> mapOrphanTransactions;
-multimap<uint256, CDataStream*> mapOrphanTransactionsByPrev;
+map<uint256, CDataStream*> mapOrphanTransactions;// ¹Â¶ù½»Ò×£¬ÆäÖĞkey¶ÔÓ¦µÄ½»Ò×hashÖµ
+multimap<uint256, CDataStream*> mapOrphanTransactionsByPrev; // ÆäÖĞkeyÎªvalue½»Ò×¶ÔÓ¦ÊäÈëµÄ½»Ò×µÄhashÖµ£¬valueÎªµ±Ç°½»Ò×
 
 map<uint256, CWalletTx> mapWallet; // Ç®°ü½»Ò×¶ÔÓ¦µÄmap£¬ÆäÖĞkey¶ÔÓ¦µÄÇ®°ü½»Ò×µÄhashÖµ£¬mapWallet½ö½ö´æ·ÅºÍ±¾½ÚµãÏà¹ØµÄ½»Ò×
 vector<pair<uint256, bool> > vWalletUpdated; // Í¨ÖªUI£¬¶ÔÓ¦µÄhash·¢ÉúÁË¸Ä±ä
 CCriticalSection cs_mapWallet;
 
-map<vector<unsigned char>, CPrivKey> mapKeys;
-map<uint160, vector<unsigned char> > mapPubKeys;
+map<vector<unsigned char>, CPrivKey> mapKeys; // ¹«Ô¿ºÍË½Ô¿¶ÔÓ¦µÄÓ³Éä¹ØÏµ£¬ÆäÖĞkeyÎª¹«Ô¿£¬valueÎªË½Ô¿
+map<uint160, vector<unsigned char> > mapPubKeys; // ¹«Ô¿µÄhashÖµºÍ¹«Ô¿µÄ¹ØÏµ£¬ÆäÖĞkeyÎª¹«Ô¿µÄhashÖµ£¬valueÎª¹«Ô¿
 CCriticalSection cs_mapKeys;
-CKey keyUser;
+CKey keyUser; // µ±Ç°ÓÃ»§¹«Ë½Ô¿¶ÔĞÅÏ¢
 
 string strSetDataDir;
 int nDropMessagesTest = 0;
 
 // Settings
 int fGenerateBitcoins; // ÊÇ·ñÍÚ¿ó£¬²úÉú±ÈÌØ±Ò
-int64 nTransactionFee = 0;
+int64 nTransactionFee = 0; // ½»Ò×·ÑÓÃ
 CAddress addrIncoming;
 
 
@@ -61,7 +61,7 @@ CAddress addrIncoming;
 //
 // mapKeys
 //
-
+// ½«¶ÔÓ¦keyµÄĞÅÏ¢´æ·Åµ½¶ÔÓ¦µÄÈ«¾Ö±äÁ¿ÖĞ
 bool AddKey(const CKey& key)
 {
     CRITICAL_BLOCK(cs_mapKeys)
@@ -71,7 +71,7 @@ bool AddKey(const CKey& key)
     }
     return CWalletDB().WriteKey(key.GetPubKey(), key.GetPrivKey());
 }
-
+// ²úÉúĞÂµÄ¹«Ë½Ô¿¶Ô
 vector<unsigned char> GenerateNewKey()
 {
     CKey key;
@@ -184,7 +184,7 @@ bool EraseFromWallet(uint256 hash)
 //
 // mapOrphanTransactions
 //
-
+// Ôö¼Ó¹Â¶ù½»Ò×
 void AddOrphanTx(const CDataStream& vMsg)
 {
     CTransaction tx;
@@ -193,10 +193,11 @@ void AddOrphanTx(const CDataStream& vMsg)
     if (mapOrphanTransactions.count(hash))
         return;
     CDataStream* pvMsg = mapOrphanTransactions[hash] = new CDataStream(vMsg);
+    // µ±Ç°½»Ò×¶ÔÓ¦µÄÊäÈë¶ÔÓ¦µÄ½»Ò×hash
     foreach(const CTxIn& txin, tx.vin)
         mapOrphanTransactionsByPrev.insert(make_pair(txin.prevout.hash, pvMsg));
 }
-
+// É¾³ı¶ÔÓ¦µÄ¹Â¶ù½»Ò×
 void EraseOrphanTx(uint256 hash)
 {
     if (!mapOrphanTransactions.count(hash))
@@ -230,7 +231,7 @@ void EraseOrphanTx(uint256 hash)
 //
 // CTransaction
 //
-
+// ÅĞ¶Ïµ±Ç°½»Ò×ÊÇÊÇ·ñ¶ÔÓ¦±¾½ÚµãµÄ½»Ò×
 bool CTxIn::IsMine() const
 {
     CRITICAL_BLOCK(cs_mapWallet)
@@ -1323,7 +1324,7 @@ bool CBlock::AcceptBlock()
 
     return true;
 }
-
+// ´¦ÀíÇø¿é£¬²»¹ÜÊÇ½ÓÊÕµ½µÄ»¹ÊÇ×Ô¼ºÍÚ¿óµÃµ½µÄ
 bool ProcessBlock(CNode* pfrom, CBlock* pblock)
 {
     // Check for duplicate
@@ -1333,7 +1334,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
     if (mapOrphanBlocks.count(hash))
         return error("ProcessBlock() : already have block (orphan) %s", hash.ToString().substr(0,14).c_str());
 
-    // Preliminary checks
+    // Preliminary checks ³õ²½½¿ÑŞ
     if (!pblock->CheckBlock())
     {
         delete pblock;
@@ -2252,6 +2253,7 @@ int FormatHashBlocks(void* pbuffer, unsigned int len)
 using CryptoPP::ByteReverse;
 static int detectlittleendian = 1;
 
+// ¼ÆËãhash
 void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 {
     unsigned int* pinput = (unsigned int*)pin;
@@ -2259,11 +2261,13 @@ void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 
     CryptoPP::SHA256::InitState(pstate);
 
+    // ¼ì²éÊÇ´ó¶Ë»¹ÊÇĞ¡¶Ë
     if (*(char*)&detectlittleendian != 0)
     {
         for (int n = 0; n < nBlocks; n++)
         {
             unsigned int pbuf[16];
+            // ´óĞ¡¶ËµÄÎÊÌâ½«×Ö½Ú·­×ª
             for (int i = 0; i < 16; i++)
                 pbuf[i] = ByteReverse(pinput[n * 16 + i]);
             CryptoPP::SHA256::Transform(pstate, pbuf);
@@ -2337,6 +2341,7 @@ bool BitcoinMiner()
             vector<char> vfAlreadyAdded(mapTransactions.size());
             bool fFoundSomething = true;
             unsigned int nBlockSize = 0;
+            // Íâ²ãÑ­»·ÊÇÒòÎªÊÇ¶àÏß³Ì£¬¿ÉÄÜ¸Õ¿ªÊ¼¶ÔÓ¦µÄ½»Ò×Ã»ÓĞÔõÃ´¶à£¬ÔòÔÚµÈ´ı½»Ò×£¬½øĞĞ´ò°ü£¬Ö»µÈ´ıÒ»ÂÖ£¬Èç¹ûmapTransactionsÓĞºÜ¶à½»Ò×ÔòÒ»Æğ´ò°ü
             while (fFoundSomething && nBlockSize < MAX_SIZE/2)
             {
                 fFoundSomething = false;
@@ -2352,22 +2357,24 @@ bool BitcoinMiner()
                     // Transaction fee requirements, mainly only needed for flood control
                     // Under 10K (about 80 inputs) is free for first 100 transactions
                     // Base rate is 0.01 per KB
+                    // ¸ù¾İ·ÑÓÃÀ´ÅĞ¶ÏÃ¿Ò»¸ö½»Ò×ĞèÒªµÄ×îÉÙ·ÑÓÃ
                     int64 nMinFee = tx.GetMinFee(pblock->vtx.size() < 100);
 
                     map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
+                    // ÅĞ¶Ïµ±Ç°½»Ò×ÊÇ·ñÂú×ã¶ÔÓ¦µÄ×îµÍ·ÑÓÃÒªÇó£¬¶ÔÓ¦µÄnFeesÔÚConnectInputsÊÇ½øĞĞÀÛ¼ÓµÄ
                     if (!tx.ConnectInputs(txdb, mapTestPoolTmp, CDiskTxPos(1,1,1), 0, nFees, false, true, nMinFee))
                         continue;
                     swap(mapTestPool, mapTestPoolTmp);
 
                     pblock->vtx.push_back(tx);
-                    nBlockSize += ::GetSerializeSize(tx, SER_NETWORK);
+                    nBlockSize += ::GetSerializeSize(tx, SER_NETWORK); // ½«µ±Ç°¼ÓÈë¿éµÄ½»Ò×´óĞ¡¼ÓÈë¶ÔÓ¦µÄ¿é´óĞ¡ÖĞ
                     vfAlreadyAdded[n] = true;
                     fFoundSomething = true;
                 }
             }
         }
-        pblock->nBits = nBits;
-        pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
+        pblock->nBits = nBits; // ÉèÖÃ¶ÔÓ¦µÄÍÚ¿ÓÄÑ¶ÈÖµ
+        pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees); // ÉèÖÃ¶ÔÓ¦µÄ¿éµÚÒ»¸ö½»Ò×¶ÔÓ¦µÄÊä³ö¶ÔÓ¦µÄÖµ=½±Àø + ½»Ò×·ÑÓÃ
         printf("\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
 
 
@@ -2395,9 +2402,10 @@ bool BitcoinMiner()
         tmp.block.nVersion       = pblock->nVersion;
         tmp.block.hashPrevBlock  = pblock->hashPrevBlock  = (pindexPrev ? pindexPrev->GetBlockHash() : 0);
         tmp.block.hashMerkleRoot = pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        // È¡Ç°11¸öÇø¿é¶ÔÓ¦µÄ´´½¨Ê±¼ä¶ÔÓ¦µÄÖĞÎ»Êı
         tmp.block.nTime          = pblock->nTime          = max((pindexPrev ? pindexPrev->GetMedianTimePast()+1 : 0), GetAdjustedTime());
         tmp.block.nBits          = pblock->nBits          = nBits;
-        tmp.block.nNonce         = pblock->nNonce         = 1;
+        tmp.block.nNonce         = pblock->nNonce         = 1; // Ëæ»úÊı´Ó1¿ªÊ¼
 
         unsigned int nBlocks0 = FormatHashBlocks(&tmp.block, sizeof(tmp.block));
         unsigned int nBlocks1 = FormatHashBlocks(&tmp.hash1, sizeof(tmp.hash1));
@@ -2407,7 +2415,7 @@ bool BitcoinMiner()
         // Search
         //
         unsigned int nStart = GetTime();
-        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256(); // ¸ù¾İÄÑ¶ÈÏµÊıÖµ»ñÈ¡¶ÔÓ¦µÄhashÄ¿±êÖµ
         uint256 hash;
         loop
         {
@@ -2415,6 +2423,7 @@ bool BitcoinMiner()
             BlockSHA256(&tmp.hash1, nBlocks1, &hash);
 
 
+            // ÍÚ¿ó³É¹¦
             if (hash <= hashTarget)
             {
                 pblock->nNonce = tmp.block.nNonce;
@@ -2443,6 +2452,7 @@ bool BitcoinMiner()
                 break;
             }
 
+            // ¸üĞÂÇø¿é´´½¨Ê±¼ä
             // Update nTime every few seconds
             if ((++tmp.block.nNonce & 0x3ffff) == 0)
             {
