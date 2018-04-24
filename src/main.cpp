@@ -43,7 +43,7 @@ CCriticalSection cs_mapKeys;
 CKey keyUser; // 当前用户公私钥对信息
 
 string strSetDataDir;
-int nDropMessagesTest = 0;
+int nDropMessagesTest = 0; // 消息采集的频率，即是多个少消息采集一次进行处理
 
 // Settings
 int fGenerateBitcoins; // 是否挖矿，产生比特币
@@ -700,7 +700,7 @@ bool CBlock::ReadFromDisk(const CBlockIndex* pblockindex, bool fReadTransactions
 {
     return ReadFromDisk(pblockindex->nFile, pblockindex->nBlockPos, fReadTransactions);
 }
-
+// 获取孤儿块对应的根
 uint256 GetOrphanRoot(const CBlock* pblock)
 {
     // Work back to the first block in the orphan chain
@@ -1688,7 +1688,7 @@ void PrintBlockTree()
 // Messages
 //
 
-
+// 判断对应的请求消息是否已经存在
 bool AlreadyHave(CTxDB& txdb, const CInv& inv)
 {
     switch (inv.type)
@@ -1707,7 +1707,7 @@ bool AlreadyHave(CTxDB& txdb, const CInv& inv)
 
 
 
-
+// 处理单个节点对应的消息：单个节点接收到的消息进行处理
 bool ProcessMessages(CNode* pfrom)
 {
     CDataStream& vRecv = pfrom->vRecv;
@@ -1715,19 +1715,21 @@ bool ProcessMessages(CNode* pfrom)
         return true;
     printf("ProcessMessages(%d bytes)\n", vRecv.size());
 
-    //
+    // 同一个的消息格式
     // Message format
     //  (4) message start
     //  (12) command
     //  (4) size
     //  (x) data
     //
+	// 消息头包含：message start;command;size;
 
     loop
     {
         // Scan for message start
         CDataStream::iterator pstart = search(vRecv.begin(), vRecv.end(), BEGIN(pchMessageStart), END(pchMessageStart));
-        if (vRecv.end() - pstart < sizeof(CMessageHeader))
+        // 删除无效的消息： 就是在对应的消息开始前面还有一些信息
+	    if (vRecv.end() - pstart < sizeof(CMessageHeader))
         {
             if (vRecv.size() > sizeof(CMessageHeader))
             {
@@ -1738,11 +1740,12 @@ bool ProcessMessages(CNode* pfrom)
         }
         if (pstart - vRecv.begin() > 0)
             printf("\n\nPROCESSMESSAGE SKIPPED %d BYTES\n\n", pstart - vRecv.begin());
-        vRecv.erase(vRecv.begin(), pstart);
+        vRecv.erase(vRecv.begin(), pstart); // 移除消息开始信息和接收缓冲区开头之间
 
+		// 读取消息头
         // Read header
         CMessageHeader hdr;
-        vRecv >> hdr;
+        vRecv >> hdr; // 指针已经偏移了
         if (!hdr.IsValid())
         {
             printf("\n\nPROCESSMESSAGE: ERRORS IN HEADER %s\n\n\n", hdr.GetCommand().c_str());
@@ -1772,6 +1775,7 @@ bool ProcessMessages(CNode* pfrom)
         {
             CheckForShutdown(2);
             CRITICAL_BLOCK(cs_main)
+				// 根据命令和消息内容进行消息处理
                 fRet = ProcessMessage(pfrom, strCommand, vMsg);
             CheckForShutdown(2);
         }
@@ -1786,46 +1790,51 @@ bool ProcessMessages(CNode* pfrom)
 
 
 
-
+// 对节点pFrom处理命令strCommand对应的消息内容为vRecv
 bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
     static map<unsigned int, vector<unsigned char> > mapReuseKey;
     printf("received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
+	// 仅仅输出前25个字符
     for (int i = 0; i < min(vRecv.size(), (unsigned int)25); i++)
         printf("%02x ", vRecv[i] & 0xff);
     printf("\n");
+	// 消息采集频率进行处理
     if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
     {
         printf("dropmessages DROPPING RECV MESSAGE\n");
         return true;
     }
 
-
-
+	// 如果命令是版本：节点对应的版本
     if (strCommand == "version")
     {
+		// 节点对应的版本只能更新一次，初始为0，后面进行更新
         // Can only do this once
         if (pfrom->nVersion != 0)
             return false;
 
         int64 nTime;
-        CAddress addrMe;
+        CAddress addrMe; // 读取消息对应的内容
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
         if (pfrom->nVersion == 0)
             return false;
-
+		// 更新发送和接收缓冲区中的对应的版本
         pfrom->vSend.SetVersion(min(pfrom->nVersion, VERSION));
         pfrom->vRecv.SetVersion(min(pfrom->nVersion, VERSION));
 
+		// 如果节点对应的服务类型是节点网络，则对应节点的客户端标记就是false
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
         if (pfrom->fClient)
         {
+			// 如果不是节点网络，可能仅仅是一些节点不要保存对应的完整区块信息，仅仅需要区块的头部进行校验就可以了
             pfrom->vSend.nType |= SER_BLOCKHEADERONLY;
             pfrom->vRecv.nType |= SER_BLOCKHEADERONLY;
         }
-
+		// 增加时间样本数据：没有什么用处，仅仅用于输出
         AddTimeData(pfrom->addr.ip, nTime);
 
+		// 对第一个进来的节点请求block信息
         // Ask the first connected node for block updates
         static bool fAskedForBlocks;
         if (!fAskedForBlocks && !pfrom->fClient)
@@ -1840,11 +1849,12 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (pfrom->nVersion == 0)
     {
+		// 节点在处理任何消息之前一定有一个版本消息
         // Must have a version message before anything else
         return false;
     }
 
-
+	// 地址消息
     else if (strCommand == "addr")
     {
         vector<CAddress> vAddr;
@@ -1856,19 +1866,20 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             if (fShutdown)
                 return true;
+			// 将地址增加到数据库中
             if (AddAddress(addrdb, addr))
             {
                 // Put on lists to send to other nodes
-                pfrom->setAddrKnown.insert(addr);
+                pfrom->setAddrKnown.insert(addr); // 将对应的地址插入到已知地址集合中
                 CRITICAL_BLOCK(cs_vNodes)
                     foreach(CNode* pnode, vNodes)
                         if (!pnode->setAddrKnown.count(addr))
-                            pnode->vAddrToSend.push_back(addr);
+                            pnode->vAddrToSend.push_back(addr);// 地址的广播
             }
         }
     }
 
-
+	// 库存消息
     else if (strCommand == "inv")
     {
         vector<CInv> vInv;
@@ -1879,19 +1890,19 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             if (fShutdown)
                 return true;
-            pfrom->AddInventoryKnown(inv);
+            pfrom->AddInventoryKnown(inv); // 将对应的库存发送消息增加到库存发送已知中
 
             bool fAlreadyHave = AlreadyHave(txdb, inv);
             printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
 
             if (!fAlreadyHave)
-                pfrom->AskFor(inv);
+                pfrom->AskFor(inv);// 如果不存在，则请求咨询，这里会在线程中发送getdata消息
             else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
                 pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
         }
     }
 
-
+	// 获取数据
     else if (strCommand == "getdata")
     {
         vector<CInv> vInv;
@@ -1912,7 +1923,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     //// could optimize this to send header straight from blockindex for client
                     CBlock block;
                     block.ReadFromDisk((*mi).second, !pfrom->fClient);
-                    pfrom->PushMessage("block", block);
+                    pfrom->PushMessage("block", block);// 获取数据对应的类型是block，则发送对应的块信息
                 }
             }
             else if (inv.IsKnownType())
@@ -1920,7 +1931,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 // Send stream from relay memory
                 CRITICAL_BLOCK(cs_mapRelay)
                 {
-                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
+                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv); // 重新转播的内容
                     if (mi != mapRelay.end())
                         pfrom->PushMessage(inv.GetCommand(), (*mi).second);
                 }
@@ -1935,9 +1946,11 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint256 hashStop;
         vRecv >> locator >> hashStop;
 
+		//找到本地有的且在主链上的
         // Find the first block the caller has in the main chain
         CBlockIndex* pindex = locator.GetBlockIndex();
 
+		// 将匹配得到的块索引之后的所有在主链上的块发送出去
         // Send the rest of the chain
         if (pindex)
             pindex = pindex->pnext;
@@ -1954,17 +1967,18 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             CRITICAL_BLOCK(pfrom->cs_inventory)
             {
                 CInv inv(MSG_BLOCK, pindex->GetBlockHash());
+				// 判断在已知库存2中是否存在
                 // returns true if wasn't already contained in the set
                 if (pfrom->setInventoryKnown2.insert(inv).second)
                 {
                     pfrom->setInventoryKnown.erase(inv);
-                    pfrom->vInventoryToSend.push_back(inv);
+                    pfrom->vInventoryToSend.push_back(inv);// 插入对应的库存发送集合中准备发送，在另一个线程中进行发送，发送的消息为inv
                 }
             }
         }
     }
 
-
+	// 交易命令
     else if (strCommand == "tx")
     {
         vector<uint256> vWorkQueue;
@@ -1973,16 +1987,18 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         vRecv >> tx;
 
         CInv inv(MSG_TX, tx.GetHash());
-        pfrom->AddInventoryKnown(inv);
+        pfrom->AddInventoryKnown(inv);// 将交易消息放入到对应的已知库存中
 
         bool fMissingInputs = false;
+		// 如果交易能够被接受
         if (tx.AcceptTransaction(true, &fMissingInputs))
         {
             AddToWalletIfMine(tx, NULL);
-            RelayMessage(inv, vMsg);
+            RelayMessage(inv, vMsg);// 转播消息
             mapAlreadyAskedFor.erase(inv);
             vWorkQueue.push_back(inv.hash);
 
+			// 递归处理所有依赖这个交易对应的孤儿交易
             // Recursively process any orphan transactions that depended on this one
             for (int i = 0; i < vWorkQueue.size(); i++)
             {
@@ -2013,7 +2029,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         else if (fMissingInputs)
         {
             printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-            AddOrphanTx(vMsg);
+            AddOrphanTx(vMsg); // 如果交易当前不被接受则对应的孤儿交易
         }
     }
 
@@ -2045,7 +2061,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         printf("received block:\n"); pblock->print();
 
         CInv inv(MSG_BLOCK, pblock->GetHash());
-        pfrom->AddInventoryKnown(inv);
+        pfrom->AddInventoryKnown(inv);// 增加库存
 
         if (ProcessBlock(pfrom, pblock.release()))
             mapAlreadyAskedFor.erase(inv);
@@ -2056,7 +2072,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     {
         pfrom->vAddrToSend.clear();
         //// need to expand the time range if not enough found
-        int64 nSince = GetAdjustedTime() - 60 * 60; // in the last hour
+        int64 nSince = GetAdjustedTime() - 60 * 60; // in the last hour 往前推一个小时
         CRITICAL_BLOCK(cs_mapAddresses)
         {
             foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
@@ -2152,7 +2168,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
 
 
-
+// 处理节点对应的消息发送
 bool SendMessages(CNode* pto)
 {
     CheckForShutdown(2);
@@ -2163,20 +2179,23 @@ bool SendMessages(CNode* pto)
             return true;
 
 
-        //
+        // 消息发送的地址
         // Message: addr
         //
         vector<CAddress> vAddrToSend;
         vAddrToSend.reserve(pto->vAddrToSend.size());
+		// 如果发送的地址不在已知地址的集合中，则将其放入临时地址发送数组中
         foreach(const CAddress& addr, pto->vAddrToSend)
             if (!pto->setAddrKnown.count(addr))
                 vAddrToSend.push_back(addr);
+		// 清空地址发送的数组
         pto->vAddrToSend.clear();
+		// 如果临时地址发送数组不为空，则进行地址的消息的发送
         if (!vAddrToSend.empty())
             pto->PushMessage("addr", vAddrToSend);
 
 
-        //
+        // 库存消息处理
         // Message: inventory
         //
         vector<CInv> vInventoryToSend;
@@ -2192,23 +2211,25 @@ bool SendMessages(CNode* pto)
             pto->vInventoryToSend.clear();
             pto->setInventoryKnown2.clear();
         }
+		// 库存消息发送
         if (!vInventoryToSend.empty())
             pto->PushMessage("inv", vInventoryToSend);
 
 
-        //
+        // getdata消息发送
         // Message: getdata
         //
         vector<CInv> vAskFor;
         int64 nNow = GetTime() * 1000000;
         CTxDB txdb("r");
+		// 判断节点对应的请求消息map是否为空，且对应的请求map中的消息对应的最早请求时间是否小于当前时间
         while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
         {
             const CInv& inv = (*pto->mapAskFor.begin()).second;
             printf("sending getdata: %s\n", inv.ToString().c_str());
             if (!AlreadyHave(txdb, inv))
-                vAskFor.push_back(inv);
-            pto->mapAskFor.erase(pto->mapAskFor.begin());
+                vAskFor.push_back(inv);// 不存在才需要进行消息发送
+            pto->mapAskFor.erase(pto->mapAskFor.begin());// 请求消息处理完一条就删除一条
         }
         if (!vAskFor.empty())
             pto->PushMessage("getdata", vAskFor);
@@ -2452,7 +2473,7 @@ bool BitcoinMiner()
                 break;
             }
 
-            // 更新区块创建时间
+            // 更新区块创建时间，重新用于挖矿
             // Update nTime every few seconds
             if ((++tmp.block.nNonce & 0x3ffff) == 0)
             {

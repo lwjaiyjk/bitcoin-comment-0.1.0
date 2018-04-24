@@ -3044,10 +3044,11 @@ bool CMyApp::OnInit2()
         pframeMain = new CMainFrame(NULL);
         pframeMain->Show();
 
+		// 启动对应节点的链接（接收消息和发送消息）
         if (!StartNode(strErrors))
             wxMessageBox(strErrors);
 
-        if (fGenerateBitcoins)
+        if (fGenerateBitcoins) //节点进行挖矿
             if (_beginthread(ThreadBitcoinMiner, 0, NULL) == -1)
                 printf("Error: _beginthread(ThreadBitcoinMiner) failed\n");
 
@@ -3078,7 +3079,7 @@ bool CMyApp::OnInit2()
 
         if (mapArgs.count("/randsendtest"))
         {
-            if (!mapArgs["/randsendtest"].empty())
+            if (!mapArgs["/randsendtest"].empty()) // 随机发送测试，开启线程进行处理
                 _beginthread(ThreadRandSendTest, 0, new string(mapArgs["/randsendtest"]));
             else
                 fRandSendTest = true;

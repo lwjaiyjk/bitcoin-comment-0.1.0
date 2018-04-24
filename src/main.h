@@ -1270,7 +1270,7 @@ public:
 class CBlockLocator
 {
 protected:
-    vector<uint256> vHave;
+    vector<uint256> vHave; // 区块链对应的block索引
 public:
 
     CBlockLocator()
@@ -1304,20 +1304,22 @@ public:
         {
             vHave.push_back(pindex->GetBlockHash());
 
+			// 指数快速回退算法：前10个保存，后面是指数回退一直到区块链头部为止
             // Exponentially larger steps back
             for (int i = 0; pindex && i < nStep; i++)
                 pindex = pindex->pprev;
             if (vHave.size() > 10)
                 nStep *= 2;
         }
-        vHave.push_back(hashGenesisBlock);
+        vHave.push_back(hashGenesisBlock); // 默认放置一个创世区块
     }
-
+	// 找到本地有的且在主链上的块的索引
     CBlockIndex* GetBlockIndex()
     {
         // Find the first block the caller has in the main chain
         foreach(const uint256& hash, vHave)
         {
+			// 找到本地有的且在主链上的
             map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
             if (mi != mapBlockIndex.end())
             {

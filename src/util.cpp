@@ -339,12 +339,12 @@ int64 GetAdjustedTime()
 {
     return GetTime() + nTimeOffset;
 }
-
+// 增加时间数据
 void AddTimeData(unsigned int ip, int64 nTime)
 {
-    int64 nOffsetSample = nTime - GetTime();
+    int64 nOffsetSample = nTime - GetTime(); // 时间偏移样本
 
-    // Ignore duplicates
+    // Ignore duplicates 忽略重复已经知道的ip
     static set<unsigned int> setKnown;
     if (!setKnown.insert(ip).second)
         return;
@@ -355,12 +355,13 @@ void AddTimeData(unsigned int ip, int64 nTime)
         vTimeOffsets.push_back(0);
     vTimeOffsets.push_back(nOffsetSample);
     printf("Added time data, samples %d, ip %08x, offset %+I64d (%+I64d minutes)\n", vTimeOffsets.size(), ip, vTimeOffsets.back(), vTimeOffsets.back()/60);
-    if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
+   // 时间偏移样本对应的大小要大于5，且是奇数（因为要取对应的中位数）
+	if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
     {
         sort(vTimeOffsets.begin(), vTimeOffsets.end());
         int64 nMedian = vTimeOffsets[vTimeOffsets.size()/2];
         nTimeOffset = nMedian;
-        if ((nMedian > 0 ? nMedian : -nMedian) > 5 * 60)
+        if ((nMedian > 0 ? nMedian : -nMedian) > 5 * 60) // 大于5分钟
         {
             // Only let other nodes change our clock so far before we
             // go to the NTP servers

@@ -145,7 +145,7 @@ public:
     unsigned int nTime;
 
     // memory only
-    unsigned int nLastFailed;
+    unsigned int nLastFailed; // 对应这个地址最近连接失败时间
 
     CAddress()
     {
@@ -447,28 +447,28 @@ public:
     CCriticalSection cs_vRecv;
     unsigned int nPushPos;
     CAddress addr;
-    int nVersion;
-    bool fClient;
+    int nVersion; // 节点对应的版本，如果节点版本为0，则消息发送不出去
+    bool fClient;// 比较是否是客户端，如果是客户端则需要区块的头部进行校验就可以了,不需要保存整个区块的内容
     bool fInbound;
-    bool fNetworkNode;
-    bool fDisconnect;
+    bool fNetworkNode; // 设置对应的节点为网络节点，是因为从对应的本地节点列表中没有查询到
+    bool fDisconnect; // 端口链接的标记
 protected:
-    int nRefCount;
+    int nRefCount; // 使用技术器
 public:
-    int64 nReleaseTime;
+    int64 nReleaseTime; // 节点释放的时间
     map<uint256, CRequestTracker> mapRequests;
     CCriticalSection cs_mapRequests;
 
-    // flood 洪泛
-    vector<CAddress> vAddrToSend;
-    set<CAddress> setAddrKnown;
+    // flood 洪泛：地址消息的命令为addr
+    vector<CAddress> vAddrToSend; // 消息需要发送对应的地址，对需要发送的地址进行已知地址的集合过滤之后再发送
+    set<CAddress> setAddrKnown; // 已知地址的集合
 
-    // inventory based relay  基于转播的库存
-    set<CInv> setInventoryKnown;
+    // inventory based relay  基于转播的库存：库存消息的命令为inv
+    set<CInv> setInventoryKnown; // 已知库存的集合
     set<CInv> setInventoryKnown2;
-    vector<CInv> vInventoryToSend;
+    vector<CInv> vInventoryToSend; //库存准备发送的集合，对库存准备发送的集合根据已知库存的集合进行过滤之后在发送
     CCriticalSection cs_inventory;
-    multimap<int64, CInv> mapAskFor;
+    multimap<int64, CInv> mapAskFor; // 咨询请求映射，key为时间（单位到微秒）
 
     // publish and subscription
     vector<char> vfSubscribe;
@@ -494,6 +494,7 @@ public:
         // Push a version message
         /// when NTP implemented, change to just nTime = GetAdjustedTime()
         int64 nTime = (fInbound ? GetAdjustedTime() : GetTime());
+		// 创建节点的时候会发送节点版本的消息：消息命令为version,后面是消息发送的内容
         PushMessage("version", VERSION, nLocalServices, nTime, addr);
     }
 
@@ -522,7 +523,7 @@ public:
     void AddRef(int64 nTimeout=0)
     {
         if (nTimeout != 0)
-            nReleaseTime = max(nReleaseTime, GetTime() + nTimeout);
+            nReleaseTime = max(nReleaseTime, GetTime() + nTimeout); // 推迟节点对应的释放时间
         else
             nRefCount++;
     }
@@ -550,15 +551,16 @@ public:
 
     void AskFor(const CInv& inv)
     {
-        // We're using mapAskFor as a priority queue,
-        // the key is the earliest time the request can be sent
+        // We're using mapAskFor as a priority queue, 优先级队列
+        // the key is the earliest time the request can be sent （key对应的是请求最早被发送的时间）
         int64& nRequestTime = mapAlreadyAskedFor[inv];
         printf("askfor %s  %I64d\n", inv.ToString().c_str(), nRequestTime);
 
+		// 确保不要时间索引让事情在同一个顺序
         // Make sure not to reuse time indexes to keep things in the same order
-        int64 nNow = (GetTime() - 1) * 1000000;
+        int64 nNow = (GetTime() - 1) * 1000000; // 单位到微秒
         static int64 nLastTime;
-        nLastTime = nNow = max(nNow, ++nLastTime);
+        nLastTime = nNow = max(nNow, ++nLastTime);//如果调用很快的话，可以保证对应的nlastTime++是的对应的时间不一样
 
         // Each retry is 2 minutes after the last，没有到2分钟，则对应的nRequesttime对应的值都一样
         nRequestTime = max(nRequestTime + 2 * 60 * 1000000, nNow);
