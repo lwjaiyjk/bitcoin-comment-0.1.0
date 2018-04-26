@@ -61,7 +61,7 @@ public:
     enum { COMMAND_SIZE=12 };
     char pchMessageStart[sizeof(::pchMessageStart)];
     char pchCommand[COMMAND_SIZE]; // 命令
-    unsigned int nMessageSize; // 命令大小
+    unsigned int nMessageSize; // 消息内容的大小
 
     CMessageHeader()
     {
@@ -441,11 +441,11 @@ public:
     // socket
     uint64 nServices;
     SOCKET hSocket;
-    CDataStream vSend;
-    CDataStream vRecv;
+    CDataStream vSend; // 发送缓存区
+    CDataStream vRecv; // 接收缓冲区
     CCriticalSection cs_vSend;
     CCriticalSection cs_vRecv;
-    unsigned int nPushPos;
+    unsigned int nPushPos;// 指定发送区已经发送的位置
     CAddress addr;
     int nVersion; // 节点对应的版本，如果节点版本为0，则消息发送不出去
     bool fClient;// 比较是否是客户端，如果是客户端则需要区块的头部进行校验就可以了,不需要保存整个区块的内容
@@ -588,7 +588,7 @@ public:
         LeaveCriticalSection(&cs_vSend);
         printf("(aborted)\n");
     }
-
+	// 修改消息头中对应的消息大小字段
     void EndMessage()
     {
         extern int nDropMessagesTest;
@@ -602,6 +602,7 @@ public:
         if (nPushPos == -1)
             return;
 
+		// 修改消息头中对应的消息大小
         // Patch in the size
         unsigned int nSize = vSend.size() - nPushPos - sizeof(CMessageHeader);
         memcpy((char*)&vSend[nPushPos] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize));
@@ -650,6 +651,7 @@ public:
         }
     }
 
+	// 将消息发送对应节点的vsend属性中
     template<typename T1>
     void PushMessage(const char* pszCommand, const T1& a1)
     {

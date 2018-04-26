@@ -18,7 +18,7 @@ DEFINE_EVENT_TYPE(wxEVT_TABLEUPDATED)
 DEFINE_EVENT_TYPE(wxEVT_TABLEDELETED)
 
 CMainFrame* pframeMain = NULL;
-map<string, string> mapAddressBook;
+map<string, string> mapAddressBook; // 地址和名称的映射，其中key为地址，value为名称
 
 
 void ThreadRequestProductDetails(void* parg);
@@ -3016,6 +3016,7 @@ bool CMyApp::OnInit2()
         return false;
     }
 
+	// 将不在块中的钱包交易放入到对应的内存交易对象mapTransactions中
     // Add wallet transactions that aren't already in a block to mapTransactions
     ReacceptWalletTransactions();
 

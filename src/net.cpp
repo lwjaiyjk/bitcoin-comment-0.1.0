@@ -760,6 +760,10 @@ void ThreadOpenConnections2(void* parg)
                 unsigned int nDelay = ((30 * 60) << vNodes.size());
                 if (nDelay > 8 * 60 * 60)
                     nDelay = 8 * 60 * 60;
+				/*
+				map::lower_bound(key):返回map中第一个大于或等于key的迭代器指针
+				map::upper_bound(key):返回map中第一个大于key的迭代器指针
+				*/
                 for (map<vector<unsigned char>, CAddress>::iterator mi = mapAddresses.lower_bound(CAddress(ipC, 0).GetKey());
                      mi != mapAddresses.upper_bound(CAddress(ipC | ~nIPCMask, 0xffff).GetKey());
                      ++mi)
@@ -768,7 +772,7 @@ void ThreadOpenConnections2(void* parg)
                     unsigned int nRandomizer = (addr.nLastFailed * addr.ip * 7777U) % 20000;
 					// 当前时间 - 地址连接最新失败的时间 要大于对应节点重连的间隔时间
                     if (GetTime() - addr.nLastFailed > nDelay * nRandomizer / 10000)
-                        mapIP[addr.ip].push_back(addr); // 同一个地址的不同端口，所有对应同一个ip会有多个地址
+                        mapIP[addr.ip].push_back(addr); //同一个地址区段不同地址： 同一个地址的不同端口，所有对应同一个ip会有多个地址
                 }
             }
             if (mapIP.empty())
@@ -797,7 +801,7 @@ void ThreadOpenConnections2(void* parg)
                     // Advertise our address
                     vector<CAddress> vAddrToSend;
                     vAddrToSend.push_back(addrLocalHost);
-                    pnode->PushMessage("addr", vAddrToSend); // 将消息推送出去，在消息处理线程中进行处理
+                    pnode->PushMessage("addr", vAddrToSend); // 将消息推送出去放入vsend中，在消息处理线程中进行处理
                 }
 
 				// 从创建的节点获得尽可能多的地址信息，发送消息，在消息处理线程中进行处理
